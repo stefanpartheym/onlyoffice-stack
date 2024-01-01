@@ -1,0 +1,61 @@
+version: "3"
+
+services:
+  db:
+    image: postgres:9.5
+    networks:
+      - db
+    environment:
+      - POSTGRES_DB=onlyoffice
+      - POSTGRES_USER=onlyoffice
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    restart: always
+    volumes:
+      - db:/var/lib/postgresql
+
+  documentserver:
+    image: onlyoffice/documentserver:latest
+    depends_on:
+      - db
+    networks:
+      - db
+      - ${PUBLIC_NETWORK}
+    environment:
+      - DB_TYPE=postgres
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=onlyoffice
+      - DB_USER=onlyoffice
+      - JWT_ENABLED=true
+      - JWT_SECRET=${ONLYOFFICE_JWT_SECRET}
+      - JWT_HEADER=Authorization
+      - JWT_IN_BODY=true
+    stdin_open: true
+    restart: always
+    stop_grace_period: 60s
+    volumes:
+      - data:/var/www/onlyoffice/Data
+      - logs:/var/log/onlyoffice
+      - cache:/var/lib/onlyoffice/documentserver/App_Data/cache/files
+      - fonts:/usr/share/fonts
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.onlyoffice.rule=Host(`onlyoffice.${DOMAIN}`)"
+      - "traefik.http.routers.onlyoffice.entrypoints=${TRAEFIK_ENTRYPOINT}"
+      - "traefik.http.routers.onlyoffice.tls.certresolver=${TRAEFIK_TLS_CERTRESOLVER}"
+      - "traefik.http.routers.onlyoffice.middlewares=onlyoffice-headers"
+      - "traefik.http.middlewares.onlyoffice-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.services.onlyoffice.loadbalancer.server.port=80"
+
+volumes:
+  data:
+  logs:
+  cache:
+  fonts:
+  db:
+
+networks:
+  db:
+  public:
+    name: ${PUBLIC_NETWORK}
+    external: true
